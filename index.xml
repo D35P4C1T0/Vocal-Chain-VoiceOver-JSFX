@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<index version="1" name="Vocal Chain VoiceOver JSFX">
+  <category name="Voice">
+    <reapack name="Pro_Voice_Chain.jsfx" type="effect" desc="Pro Voice Chain">
+      <metadata>
+        <description><![CDATA[Professional voice-over channel strip for REAPER JSFX.
+
+Chain: Trim -> DC Block -> HPF -> Downward Expander -> Corrective EQ -> Split De-esser -> Compressor -> Saturation -> Limiter.
+
+Includes multiple saturation models, stage meters, input/output meters, and voice-over focused defaults.]]></description>
+        <link rel="website">https://github.com/D35P4C1T0/Vocal-Chain-VoiceOver-JSFX</link>
+      </metadata>
+      <version name="0.3.0" author="Codex" time="2026-04-30T00:00:00Z">
+        <source>https://github.com/D35P4C1T0/Vocal-Chain-VoiceOver-JSFX/raw/main/Pro_Voice_Chain.jsfx</source>
+      </version>
+    </reapack>
+  </category>
+</index>
