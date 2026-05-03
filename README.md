@@ -2,29 +2,99 @@
 
 Professional voice-over channel strip for REAPER JSFX.
 
-## Current Chain
+Current plugin:
 
-`Trim -> DC Block -> HPF -> Downward Expander -> Corrective EQ -> Split De-esser -> Compressor -> Saturation -> Limiter`
+```text
+JS: Pro Voice Chain v1.0 - VoiceOver Unified Chain
+```
+
+## Chain
+
+```text
+Input Trim
+-> Smart Input Gain
+-> DC Block + HPF cleanup
+-> Downward Expander
+-> Split-band De-esser
+-> 1175 compressor
+-> LA2 compressor
+-> MajorTom compressor
+-> Brown Guard dynamic tone control
+-> Voice Limiter / VoiceSat saturation
+-> Output LUFS/RMS/L+R auto trim
+-> Final safety limiter
+```
 
 ## Features
 
-- Low-latency time-domain voice processing.
-- Downward expander for room tone control.
-- Corrective EQ bands for low mud, nasal range, and presence.
-- Split-band de-esser.
-- Feed-forward compressor with soft knee and detector HPF.
-- Multiple saturation models inspired by JSFXClones candidates:
+- Voice-over focused channel strip for spoken word, podcast, narration, audiobook, and broadcast-style delivery.
+- Downward expander for room tone and noise control between phrases.
+- De-esser works independently from the expander and stays active when the expander is bypassed.
+- Three-stage compression stack: fast 1175, opto-style LA2, and MajorTom program-dependent compression.
+- Brown Guard dynamic tone shaping for low/mid/high balance.
+- VoiceSat saturation with selectable modes:
+  - Hybrid
   - Atan
-  - TapeHead
-  - SatChannel
-  - TubeDriver
-  - OInflator
+  - Tape
+  - Channel
+  - Tube
+  - Inflate
   - Molot
   - DaTube
-  - Fattener
+  - Fat
   - VBL
-- Sample-peak limiter.
-- Custom UI with stage meters, input/output meters, and key parameter readouts.
+- Output auto trim for LUFS, RMS, or combined L+R targets.
+- Final safety limiter, enabled by default.
+- Resizable JSFX UI with vertical scrolling and dynamic width.
+
+## De-esser
+
+The de-esser is in the **Expander** panel as a `DE-ESS` mini section.
+
+Controls:
+
+- `ON/OFF`: enables or bypasses the de-esser.
+- `THR`: sibilance threshold. Lower values reduce more.
+- `FRQ`: split/detector frequency for S, SH, and T sounds.
+- `RNG`: maximum high-band reduction.
+
+The de-esser is after the expander and before the compressors. If the expander is off, the de-esser still works.
+
+## Expander
+
+The expander is **downward**. It reduces signal below threshold; it does not lift quiet audio upward.
+
+Controls:
+
+- `THRS`: threshold where expansion starts.
+- `RANGE`: maximum reduction below threshold.
+- `HYST`: hysteresis to avoid chatter.
+- `ATTK`: how fast reduction begins.
+- `REL`: how fast level returns.
+- `Curve`: soft knee/transition shape.
+- `SC`: sidechain high-pass, useful so plosives/rumble do not drive detection.
+
+## Saturation
+
+Saturation is in the **Voice Limiter** panel.
+
+- `SAT`: saturation amount.
+- `MODE`: click to cycle saturation model.
+
+Recommended starting points for voice-over:
+
+- `Hybrid`: default general-purpose warmth.
+- `Tape`: gentle narration warmth.
+- `Channel`: subtle console-style edge.
+- `Inflate`: density/presence with care.
+- `Molot`: stronger color, use low `SAT`.
+
+## UI Notes
+
+- The plugin window can be resized horizontally.
+- Panels expand with window width.
+- Vertical scrolling remains enabled for the module stack.
+- If the window is narrower than the minimum layout, horizontal scrolling appears.
 
 ## Manual Install
 
@@ -95,18 +165,17 @@ Extensions -> ReaPack -> Browse packages...
 Extensions -> ReaPack -> Synchronize packages
 ```
 
-This repository includes a basic `index.xml` for ReaPack. If ReaPack does not show the package immediately, run `Extensions -> ReaPack -> Synchronize packages` again or use the manual install method.
+If ReaPack does not show the package immediately, run `Extensions -> ReaPack -> Synchronize packages` again or use the manual install method.
 
 ## Suggested Starting Point
 
-- Set input trim so normal speech hits the compressor cleanly without slamming the limiter.
-- Tune expander threshold just above the room tone.
-- Aim for modest gain reduction:
-  - Expander: only between phrases
-  - De-esser: about 2-5 dB on sibilants
-  - Compressor: about 3-6 dB on average speech peaks
-  - Limiter: about 1-3 dB max
-- For voice-over saturation, try `TapeHead` first, then `SatChannel`, then low-mix `OInflator`.
+- Set input trim so normal speech has healthy level without slamming the limiter.
+- Tune expander threshold just above room tone.
+- Keep expander range moderate, often `-6` to `-12 dB`.
+- Aim de-esser reduction around `2-5 dB` on sibilants.
+- Use compression in stages rather than forcing one compressor to do all the work.
+- Use `SAT` subtly for professional voice-over; `5-15%` is often enough.
+- Keep final limiter on for delivery safety.
 
 ## Development Notes
 
