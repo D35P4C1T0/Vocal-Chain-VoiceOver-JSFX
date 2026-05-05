@@ -14,8 +14,9 @@ JS: Pro Voice Chain v1.0 - VoiceOver Unified Chain
 Input Trim
 -> Smart Input Gain
 -> DC Block + HPF cleanup
+-> Plosive control
 -> Downward Expander
--> Split-band De-esser
+-> Smart split-band De-esser
 -> 1175 compressor
 -> LA2 compressor
 -> MajorTom compressor
@@ -28,8 +29,9 @@ Input Trim
 ## Features
 
 - Voice-over focused channel strip for spoken word, podcast, narration, audiobook, and broadcast-style delivery.
+- Dynamic plosive control for P/B pops before compression.
 - Downward expander for room tone and noise control between phrases.
-- De-esser works independently from the expander and stays active when the expander is bypassed.
+- Smart de-esser with Auto, S, SH, and T/C modes. It works independently from the expander and stays active when the expander is bypassed.
 - Three-stage compression stack: fast 1175, opto-style LA2, and MajorTom program-dependent compression.
 - Brown Guard dynamic tone shaping for low/mid/high balance.
 - VoiceSat saturation with selectable modes:
@@ -54,11 +56,22 @@ The de-esser is in the **Expander** panel as a `DE-ESS` mini section.
 Controls:
 
 - `ON/OFF`: enables or bypasses the de-esser.
+- `MODE`: cycles Auto, S, SH, and T/C detection.
 - `THR`: sibilance threshold. Lower values reduce more.
 - `FRQ`: split/detector frequency for S, SH, and T sounds.
 - `RNG`: maximum high-band reduction.
 
 The de-esser is after the expander and before the compressors. If the expander is off, the de-esser still works.
+
+## Plosive Control
+
+The plosive control is in the **Expander** panel as a `PLOSIVE` mini section.
+
+- `ON/OFF`: enables or bypasses low-pop reduction.
+- `AMT`: maximum reduction applied to the low pop band.
+- `HZ`: low-band detector frequency for P/B thumps.
+
+It runs before the expander and compression stack, so pops do not over-trigger later dynamics.
 
 ## Expander
 

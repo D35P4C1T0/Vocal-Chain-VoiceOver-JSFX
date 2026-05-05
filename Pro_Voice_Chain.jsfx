@@ -448,10 +448,20 @@ deess_user_hz <= 0 ? (
   deess_user_thr = -28;
   deess_user_hz = 6500;
   deess_user_range = 4;
+  deess_user_mode = 0;
 );
 deess_user_thr < -80 || deess_user_thr > 0 ? deess_user_thr = -28;
 deess_user_hz < 1000 || deess_user_hz > 16000 ? deess_user_hz = 6500;
 deess_user_range < 0 || deess_user_range > 18 ? deess_user_range = 4;
+deess_user_mode < 0 || deess_user_mode > 3 ? deess_user_mode = 0;
+plosive_user_freq <= 0 ? (
+  plosive_user_on = 1;
+  plosive_user_amt = 5;
+  plosive_user_freq = 160;
+);
+plosive_user_on = plosive_user_on >= 0.5 ? 1 : 0;
+plosive_user_amt = min(12, max(0, plosive_user_amt));
+plosive_user_freq = min(260, max(80, plosive_user_freq));
 sat_mode < 0 || sat_mode > 9 ? sat_mode = 0;
 
 function db2gain(x) (10^(x*0.05));
@@ -706,6 +716,30 @@ local(w0, c, s, alpha, b0n,b1n,b2n,a0n,a1n,a2n)
   b2 = a2n/a0n;
 );
 
+function biquad_set_lp(fc, q)
+instance(a0,a1,a2,b1,b2)
+local(w0, c, s, alpha, b0n,b1n,b2n,a0n,a1n,a2n)
+(
+  fc = clamp(fc, 20, srate * 0.45);
+  w0 = 2*$pi*fc/srate;
+  c = cos(w0);
+  s = sin(w0);
+  alpha = s/(2*q);
+
+  b0n = (1 - c)*0.5;
+  b1n = 1 - c;
+  b2n = (1 - c)*0.5;
+  a0n = 1 + alpha;
+  a1n = -2*c;
+  a2n = 1 - alpha;
+
+  a0 = b0n/a0n;
+  a1 = b1n/a0n;
+  a2 = b2n/a0n;
+  b1 = a1n/a0n;
+  b2 = a2n/a0n;
+);
+
 function biquad_set_hs(fc, q, dbgain)
 instance(a0,a1,a2,b1,b2)
 local(A,w0,c,s,alpha,beta,b0n,b1n,b2n,a0n,a1n,a2n)
@@ -884,12 +918,25 @@ function compute_dsp_params()
   cleanup_hpf1R.biquad_set_hp(cleanup_hpf_hz, 0.70710678);
   cleanup_hpf2L.biquad_set_hp(cleanup_hpf_hz, 0.70710678);
   cleanup_hpf2R.biquad_set_hp(cleanup_hpf_hz, 0.70710678);
-  // Fixed split-band de-esser before the compression stack.
-  deess_hz = min(clamp(deess_user_hz, 3500, 12000), srate * 0.35);
+  // Dynamic low-band pop softener before expander/compressors.
+  plosive_freq = min(clamp(plosive_user_freq, 80, 260), srate * 0.25);
+  plosive_amt_db = clamp(plosive_user_amt, 0, 12);
+  plosive_att_c = exp(-1 / (0.0006 * srate));
+  plosive_rel_c = exp(-1 / (0.055 * srate));
+  plosive_lpL.biquad_set_lp(plosive_freq, 0.70710678);
+  plosive_lpR.biquad_set_lp(plosive_freq, 0.70710678);
+  // Smart split-band de-esser before the compression stack.
+  deess_mode = clamp(floor(deess_user_mode + 0.5), 0, 3);
+  deess_hz = clamp(deess_user_hz, 3500, 12000);
+  deess_mode == 2 ? deess_hz *= 0.72;
+  deess_mode == 3 ? deess_hz *= 1.18;
+  deess_hz = min(clamp(deess_hz, 3200, 13500), srate * 0.35);
   deess_thr_db = clamp(deess_user_thr, -60, 0);
-  deess_range_db = clamp(deess_user_range, 0, 12);
-  deess_att_c = exp(-1 / (0.001 * srate));
-  deess_rel_c = exp(-1 / (0.070 * srate));
+  deess_range_db = clamp(deess_user_range * (deess_mode == 2 ? 0.85 : (deess_mode == 3 ? 0.70 : 1)), 0, 12);
+  deess_att_ms = deess_mode == 3 ? 0.25 : (deess_mode == 2 ? 1.4 : 0.8);
+  deess_rel_ms = deess_mode == 3 ? 32 : (deess_mode == 2 ? 95 : 70);
+  deess_att_c = exp(-1 / (deess_att_ms * 0.001 * srate));
+  deess_rel_c = exp(-1 / (deess_rel_ms * 0.001 * srate));
   deess_splitL.biquad_set_hp(deess_hz, 0.70710678);
   deess_splitR.biquad_set_hp(deess_hz, 0.70710678);
   deess_detL.biquad_set_hp(deess_hz, 0.70710678);
@@ -1120,6 +1167,14 @@ gate_state = 1;
 gate_phase = 2;
 gate_hold_cnt = 0;
 gate_key = 0;
+plosive_env = 0;
+plosive_gr_db = 0;
+plosive_prev = 0;
+plosive_g = 1;
+deess_env = 0;
+deess_gr_db = 0;
+deess_prev = 0;
+deess_g = 1;
 
 c1175_env = 0; c1175_gr_db = 0;
 la2_env = 0; la2_gr_db = 0;
@@ -1487,6 +1542,10 @@ file_var(0, brn_xmove1);
 file_var(0, brn_xmove2);
 file_var(0, brn_xmove3);
 file_var(0, brn_xmove4);
+file_var(0, deess_user_mode);
+file_var(0, plosive_user_on);
+file_var(0, plosive_user_amt);
+file_var(0, plosive_user_freq);
 brn_amu_on = brn_amu_on >= 0.5 ? 1 : 0;
 brn_user1 = clamp(brn_user1, -6, 6);
 brn_user2 = clamp(brn_user2, -6, 6);
@@ -1501,11 +1560,21 @@ deess_user_hz <= 0 ? (
   deess_user_thr = -28;
   deess_user_hz = 6500;
   deess_user_range = 4;
+  deess_user_mode = 0;
 );
 deess_user_on = deess_user_on >= 0.5 ? 1 : 0;
 deess_user_thr = clamp(deess_user_thr, -60, 0);
 deess_user_hz = clamp(deess_user_hz, 3500, 12000);
 deess_user_range = clamp(deess_user_range, 0, 12);
+deess_user_mode = clamp(floor(deess_user_mode + 0.5), 0, 3);
+plosive_user_freq <= 0 ? (
+  plosive_user_on = 1;
+  plosive_user_amt = 5;
+  plosive_user_freq = 160;
+);
+plosive_user_on = plosive_user_on >= 0.5 ? 1 : 0;
+plosive_user_amt = clamp(plosive_user_amt, 0, 12);
+plosive_user_freq = clamp(plosive_user_freq, 80, 260);
 sat_mode = clamp(floor(sat_mode + 0.5), 0, 9);
 refresh_in_smart_capture_trim();
 refresh_out_smart_capture_trim();
@@ -1646,6 +1715,24 @@ dbg_in_post_db = gain2db(sqrt(max(dbg_in_post_env,0.000000000001)));
 // Real audio cleanup before dynamics: remove DC, rumble and plosive sub-energy.
 inL = cleanup_dcL.dc_tick(inL);
 inR = cleanup_dcR.dc_tick(inR);
+plosive_user_on >= 0.5 && plosive_amt_db > 0 ? (
+  plosive_lowL = plosive_lpL.biquad_tick(inL);
+  plosive_lowR = plosive_lpR.biquad_tick(inR);
+  plosive_body = max(abs(plosive_lowL), abs(plosive_lowR));
+  plosive_fast = abs(plosive_body - plosive_prev);
+  plosive_prev = plosive_body;
+  plosive_det = max(plosive_body * 0.35, plosive_fast * 3.2);
+  plosive_env += (plosive_det - plosive_env) * ((plosive_det > plosive_env) ? (1 - plosive_att_c) : (1 - plosive_rel_c));
+  plosive_over_db = gain2db(max(plosive_env, 0.000000000001)) - (gate_thresh + 12);
+  plosive_gr_db = plosive_over_db > 0 ? -min(plosive_amt_db, plosive_over_db * 0.85) : 0;
+  plosive_g = db2gain(plosive_gr_db);
+  inL += plosive_lowL * (plosive_g - 1);
+  inR += plosive_lowR * (plosive_g - 1);
+) : (
+  plosive_gr_db = 0;
+  plosive_g = 1;
+  plosive_prev *= 0.999;
+);
 inL = cleanup_hpf1L.biquad_tick(inL);
 inR = cleanup_hpf1R.biquad_tick(inR);
 inL = cleanup_hpf2L.biquad_tick(inL);
@@ -1713,6 +1800,10 @@ deess_user_on >= 0.5 && deess_range_db > 0 ? (
   deess_keyL = deess_detL.biquad_tick(s1L);
   deess_keyR = deess_detR.biquad_tick(s1R);
   deess_det = max(abs(deess_keyL), abs(deess_keyR));
+  deess_trans = abs(deess_det - deess_prev);
+  deess_prev = deess_det;
+  deess_mode == 0 ? deess_det = max(deess_det, deess_trans * 2.2);
+  deess_mode == 3 ? deess_det = max(deess_det * 0.60, deess_trans * 3.4);
   deess_env += (deess_det - deess_env) * ((deess_det > deess_env) ? (1 - deess_att_c) : (1 - deess_rel_c));
   deess_over_db = gain2db(max(deess_env, 0.000000000001)) - deess_thr_db;
   deess_gr_db = deess_over_db > 0 ? -min(deess_range_db, deess_over_db) : 0;
@@ -2954,6 +3045,8 @@ local(val, id, hover, pct, angle, nx, ny, _tw, _th, new_val, rng, dbl)
   which == 1 ? val = deess_user_thr :
   which == 2 ? val = deess_user_hz :
   which == 3 ? val = deess_user_range :
+  which == 4 ? val = plosive_user_amt :
+  which == 5 ? val = plosive_user_freq :
                val = 0;
   rng = maxv - minv;
   val = clamp(val, minv, maxv);
@@ -2983,7 +3076,9 @@ local(val, id, hover, pct, angle, nx, ny, _tw, _th, new_val, rng, dbl)
   );
   which == 1 ? deess_user_thr = val :
   which == 2 ? deess_user_hz = val :
-  which == 3 ? deess_user_range = val;
+  which == 3 ? deess_user_range = val :
+  which == 4 ? plosive_user_amt = val :
+  which == 5 ? plosive_user_freq = val;
 
   knob_active_sl==id ? gfx_set(mod_r*0.30,mod_g*0.22,mod_b*0.30,1) : gfx_set(mod_r*0.15,mod_g*0.12,mod_b*0.16,1);
   gfx_circle(cx,cy,r,1,1);
@@ -2994,6 +3089,7 @@ local(val, id, hover, pct, angle, nx, ny, _tw, _th, new_val, rng, dbl)
   gfx_line(cx,cy,nx,ny,1);
   gfx_setfont(1,"Arial",9,'b'); gfx_set(0.92,0.92,0.94,1);
   which == 2 ? sprintf(#_vk,"%.1fk",val/1000) :
+  which == 5 ? sprintf(#_vk,"%.0f",val) :
   abs(val)>=10 ? sprintf(#_vk,"%.0f",val) : sprintf(#_vk,"%.1f",val);
   gfx_measurestr(#_vk,_tw,_th);
   gfx_x=cx-_tw*0.5; gfx_y=cy-r-12; gfx_drawstr(#_vk);
@@ -3004,7 +3100,7 @@ local(val, id, hover, pct, angle, nx, ny, _tw, _th, new_val, rng, dbl)
 );
 
 function ui_deess_box(x, y, w, h)
-local(hover, _tw, _th, bx, by, bw, bh)
+local(hover, _tw, _th, bx, by, bw, bh, mode)
 (
   gfx_set(0.055,0.060,0.070,1); gfx_rect(x,y,w,h);
   gfx_set(0.80,0.62,0.20,0.42); gfx_rect(x,y,w,1); gfx_rect(x,y+h-1,w,1);
@@ -3024,6 +3120,25 @@ local(hover, _tw, _th, bx, by, bw, bh)
   deess_user_on >= 0.5 ? strcpy(#_ds,"ON") : strcpy(#_ds,"OFF");
   gfx_measurestr(#_ds,_tw,_th); gfx_x=bx+(bw-_tw)*0.5; gfx_y=by+2; gfx_drawstr(#_ds);
 
+  mode = clamp(floor(deess_user_mode + 0.5), 0, 3);
+  bx = x+5; by = y+18; bw = w-10; bh = 13;
+  hover = hit(bx,by,bw,bh);
+  hover ? ui_set_hover(4054);
+  !ui_render_only && hover && mouse_click ? (
+    deess_user_mode = mode + 1;
+    deess_user_mode > 3 ? deess_user_mode = 0;
+    mode = deess_user_mode;
+    dsp_needs_update = 1;
+  );
+  hover ? gfx_set(0.30,0.20,0.40,0.98) : gfx_set(0.13,0.12,0.20,0.95);
+  gfx_rect(bx,by,bw,bh);
+  gfx_setfont(1,"Arial",8,'b'); gfx_set(0.88,0.78,0.96,1);
+  mode == 0 ? strcpy(#_dsm,"AUTO") :
+  mode == 1 ? strcpy(#_dsm,"S") :
+  mode == 2 ? strcpy(#_dsm,"SH") :
+              strcpy(#_dsm,"T/C");
+  gfx_measurestr(#_dsm,_tw,_th); gfx_x=bx+(bw-_tw)*0.5; gfx_y=by+2; gfx_drawstr(#_dsm);
+
   ui_custom_knob(1, x+20, y+48, 9, -60, 0, -28, "THR", 4051);
   ui_custom_knob(2, x+47, y+48, 9, 3500, 12000, 6500, "FRQ", 4052);
   ui_custom_knob(3, x+74, y+48, 9, 0, 12, 4, "RNG", 4053);
@@ -3031,6 +3146,35 @@ local(hover, _tw, _th, bx, by, bw, bh)
   gfx_setfont(1,"Arial",9); gfx_set(0.62,0.66,0.70,0.85);
   sprintf(#_dsg,"GR %.1f",deess_gr_db);
   gfx_x=x+5; gfx_y=y+h-12; gfx_drawstr(#_dsg);
+);
+
+function ui_plosive_box(x, y, w, h)
+local(hover, _tw, _th, bx, by, bw, bh)
+(
+  gfx_set(0.055,0.060,0.070,1); gfx_rect(x,y,w,h);
+  gfx_set(0.88,0.38,0.16,0.42); gfx_rect(x,y,w,1); gfx_rect(x,y+h-1,w,1);
+  gfx_setfont(1,"Arial",9,'b'); gfx_set(0.92,0.54,0.24,0.95);
+  gfx_x=x+5; gfx_y=y+3; gfx_drawstr("PLOSIVE");
+
+  bx = x+w-31; by = y+3; bw = 26; bh = 13;
+  hover = hit(bx,by,bw,bh);
+  hover ? ui_set_hover(4060);
+  !ui_render_only && hover && mouse_click ? (
+    plosive_user_on = 1 - (plosive_user_on >= 0.5 ? 1 : 0);
+    dsp_needs_update = 1;
+  );
+  plosive_user_on >= 0.5 ? gfx_set(0.74,0.34,0.16,0.95) : gfx_set(0.22,0.22,0.24,0.95);
+  gfx_rect(bx,by,bw,bh);
+  gfx_setfont(1,"Arial",8,'b'); gfx_set(0.98,0.92,0.86,1);
+  plosive_user_on >= 0.5 ? strcpy(#_ps,"ON") : strcpy(#_ps,"OFF");
+  gfx_measurestr(#_ps,_tw,_th); gfx_x=bx+(bw-_tw)*0.5; gfx_y=by+2; gfx_drawstr(#_ps);
+
+  ui_custom_knob(4, x+24, y+47, 10, 0, 12, 5, "AMT", 4061);
+  ui_custom_knob(5, x+62, y+47, 10, 80, 260, 160, "HZ", 4062);
+
+  gfx_setfont(1,"Arial",9); gfx_set(0.66,0.62,0.58,0.88);
+  sprintf(#_psg,"GR %.1f",plosive_gr_db);
+  gfx_x=x+5; gfx_y=y+h-12; gfx_drawstr(#_psg);
 );
 
 function ui_sat_mode_cycle(x, y, w, h)
@@ -3589,7 +3733,7 @@ local(i,steps,in_db,xdb,p,curve_db,gain_db,gx,gy,pgx,pgy,thr_x,hys_x,hys_db,hys_
   gfx_x=x+w-_tw-3; gfx_y=y+h-10; gfx_drawstr(#_gc);
 );
 
-function draw_panel_gate(px,py,pw)  local(ky,ks,ki,m)
+function draw_panel_gate(px,py,pw)  local(ky,ks,ki,m,mini_x)
 (
   mod_active = floor(slider(6)+0.5);
   set_mod_color(2);
@@ -3602,7 +3746,9 @@ function draw_panel_gate(px,py,pw)  local(ky,ks,ki,m)
   ui_knob(11,ki+ks*4, ky,KR, 20,2000,180,"REL",  4005);
   ui_knob(49,ki+ks*5, ky,KR, 0,48,24,"Curve", 4007);
   ui_sc_hpf_knob(12,ki+ks*5+42, ky,10, 4006);
-  ui_deess_box(px+352, py+18, 88, 86);
+  mini_x = m - 192;
+  ui_plosive_box(mini_x, py+18, 84, 86);
+  ui_deess_box(mini_x+92, py+18, 88, 86);
   draw_hsegs(   m,py+MBY0,MW,MBH,ui_gate_in_db, 2,"IN");
   draw_hsegs_gr(m,py+MBY1,MW,MBH,ui_gate_act_db,3,"GR");
   draw_hsegs(   m,py+MBY2,MW,MBH,ui_gate_out_db,4,"OUT");
@@ -4195,6 +4341,10 @@ local(tip_y)
   ui_hover_id==4051 ? strcpy(#_tip_msg,"DE-ESS THR: soglia sibilanti; piu' bassa = piu' riduzione") :
   ui_hover_id==4052 ? strcpy(#_tip_msg,"DE-ESS FRQ: frequenza split/detector per S, SH e T") :
   ui_hover_id==4053 ? strcpy(#_tip_msg,"DE-ESS RNG: riduzione massima applicata alla banda alta") :
+  ui_hover_id==4054 ? strcpy(#_tip_msg,"DE-ESS MODE: Auto, S, SH o T/C; cambia detector, frequenza e tempi") :
+  ui_hover_id==4060 ? strcpy(#_tip_msg,"PLOSIVE ON/OFF: riduce dinamicamente i pop P/B prima dei compressori") :
+  ui_hover_id==4061 ? strcpy(#_tip_msg,"PLOSIVE AMT: riduzione massima della banda low-pop") :
+  ui_hover_id==4062 ? strcpy(#_tip_msg,"PLOSIVE HZ: frequenza low-band usata per intercettare P/B e thump") :
   ui_hover_id==5001 ? strcpy(#_tip_msg,"THRS: soglia del compressore 1175, in dBFS") :
   ui_hover_id==5002 ? strcpy(#_tip_msg,"RATIO: rapporto di compressione 1175, ad esempio 4:1") :
   ui_hover_id==5003 ? strcpy(#_tip_msg,"MKP: make-up gain 1175 in dB, recupera il livello perso") :
