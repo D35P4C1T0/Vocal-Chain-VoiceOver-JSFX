@@ -10,7 +10,7 @@ Chain: Trim -> DC Block -> HPF -> Downward Expander -> Corrective EQ -> Split De
 Includes multiple saturation models, stage meters, input/output meters, and voice-over focused defaults.]]></description>
         <link rel="website">https://github.com/D35P4C1T0/Vocal-Chain-VoiceOver-JSFX</link>
       </metadata>
-      <version name="1.0.0" author="Codex" time="2026-05-02T00:00:00Z">
+      <version name="1.1.0" author="D35P4C1T0" time="2026-05-06T00:00:00Z">
         <source>https://github.com/D35P4C1T0/Vocal-Chain-VoiceOver-JSFX/raw/main/Pro_Voice_Chain.jsfx</source>
       </version>
     </reapack>

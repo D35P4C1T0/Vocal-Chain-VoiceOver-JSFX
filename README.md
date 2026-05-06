@@ -5,8 +5,10 @@ Professional voice-over channel strip for REAPER JSFX.
 Current plugin:
 
 ```text
-JS: Pro Voice Chain v1.0 - VoiceOver Unified Chain
+JS: Pro Voice Chain v1.1 - VoiceOver Unified Chain
 ```
+
+Author: `D35P4C1T0`
 
 ## Chain
 
@@ -24,6 +26,26 @@ Input Trim
 -> Voice Limiter / VoiceSat saturation
 -> Output LUFS/RMS/L+R auto trim
 -> Final safety limiter
+```
+
+## Workflow
+
+```mermaid
+flowchart TD
+    input["Voice Input<br/>Trim + Smart Gain"]
+    repair["Repair<br/>DC/HPF cleanup + Plosive Control"]
+    dynamics["Dynamics<br/>Downward Expander + Smart De-esser"]
+    comp["Compression<br/>1175 -> LA2 -> MajorTom"]
+    tone["Tone + Density<br/>Brown Guard -> VoiceSat Limiter"]
+    output["Delivery<br/>LUFS/RMS/L+R Auto Trim -> Safety Limiter"]
+    done["Ready Voice-Over Output"]
+    dynNote["Expander SC HPF<br/>De-esser independent"]
+    outNote["Meters<br/>Target capture"]
+
+    input --> repair --> dynamics --> comp --> tone --> output --> done
+
+    dynNote -.-> dynamics
+    outNote -.-> output
 ```
 
 ## Features
@@ -116,25 +138,25 @@ Copy `Pro_Voice_Chain.jsfx` into your REAPER `Effects` folder, then restart REAP
 ### macOS
 
 ```text
-~/Library/Application Support/REAPER/Effects/Codex/Pro_Voice_Chain.jsfx
+~/Library/Application Support/REAPER/Effects/D35P4C1T0/Pro_Voice_Chain.jsfx
 ```
 
 ### Windows
 
 ```text
-%APPDATA%\REAPER\Effects\Codex\Pro_Voice_Chain.jsfx
+%APPDATA%\REAPER\Effects\D35P4C1T0\Pro_Voice_Chain.jsfx
 ```
 
 Usually expands to:
 
 ```text
-C:\Users\<you>\AppData\Roaming\REAPER\Effects\Codex\Pro_Voice_Chain.jsfx
+C:\Users\<you>\AppData\Roaming\REAPER\Effects\D35P4C1T0\Pro_Voice_Chain.jsfx
 ```
 
 ### Linux
 
 ```text
-~/.config/REAPER/Effects/Codex/Pro_Voice_Chain.jsfx
+~/.config/REAPER/Effects/D35P4C1T0/Pro_Voice_Chain.jsfx
 ```
 
 Some portable or distro-specific installs may use a different REAPER resource path. In REAPER, open:
@@ -146,7 +168,7 @@ Options -> Show REAPER resource path in explorer/finder
 Then put the file inside:
 
 ```text
-Effects/Codex/Pro_Voice_Chain.jsfx
+Effects/D35P4C1T0/Pro_Voice_Chain.jsfx
 ```
 
 ## ReaPack Install

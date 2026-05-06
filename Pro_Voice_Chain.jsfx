@@ -1,12 +1,13 @@
-desc:Pro Voice Chain v1.0 - VoiceOver Unified Chain
-version:1.0.0
+desc:Pro Voice Chain v1.1 - VoiceOver Unified Chain
+version:1.1.0
+author:D35P4C1T0
 about:
   Voiceover leveler chain with internal gain staging,
   base profiles, sidechain shaping, Brown Guard, zero-latency voice limiter/clipper, LUFS/RMS auto trim,
   independent manual capture timing for Input and Output, optional Brown Guard auto makeup, and optional final safety limiter.
 
 // ============================================================================
-// MANUALE UTENTE — Pro Voice Chain v1.0
+// MANUALE UTENTE — Pro Voice Chain v1.1
 // Plugin: Pro Voice Chain
 // Sezione "living": si aggiorna ad ogni revisione DSP o UI significativa.
 // ============================================================================
@@ -443,31 +444,37 @@ auto_mono_host_ch = num_ch;
 auto_mono_from_gfx = 0;
 in_capture_seconds <= 0 ? in_capture_seconds = 30;
 out_capture_seconds <= 0 ? out_capture_seconds = 30;
-deess_user_hz <= 0 ? (
-  deess_user_on = 1;
-  deess_user_thr = -28;
-  deess_user_hz = 6500;
-  deess_user_range = 4;
-  deess_user_mode = 0;
-);
-deess_user_thr < -80 || deess_user_thr > 0 ? deess_user_thr = -28;
-deess_user_hz < 1000 || deess_user_hz > 16000 ? deess_user_hz = 6500;
-deess_user_range < 0 || deess_user_range > 18 ? deess_user_range = 4;
-deess_user_mode < 0 || deess_user_mode > 3 ? deess_user_mode = 0;
-plosive_user_freq <= 0 ? (
-  plosive_user_on = 1;
-  plosive_user_amt = 5;
-  plosive_user_freq = 160;
-);
-plosive_user_on = plosive_user_on >= 0.5 ? 1 : 0;
-plosive_user_amt = min(12, max(0, plosive_user_amt));
-plosive_user_freq = min(260, max(80, plosive_user_freq));
-sat_mode < 0 || sat_mode > 9 ? sat_mode = 0;
 
 function db2gain(x) (10^(x*0.05));
 function gain2db(x) (20*log(max(x,0.000000000001))/log(10));
 function clamp(x,lo,hi) (x < lo ? lo : (x > hi ? hi : x));
 function slider_mask(sl_id) ( 2 ^ (sl_id - 1); );
+function sanitize_voice_tools()
+(
+  deess_user_hz <= 0 ? (
+    deess_user_on = 1;
+    deess_user_thr = -28;
+    deess_user_hz = 6500;
+    deess_user_range = 4;
+    deess_user_mode = 0;
+  );
+  deess_user_on = deess_user_on >= 0.5 ? 1 : 0;
+  deess_user_thr = clamp(deess_user_thr, -60, 0);
+  deess_user_hz = clamp(deess_user_hz, 3500, 12000);
+  deess_user_range = clamp(deess_user_range, 0, 12);
+  deess_user_mode = clamp(floor(deess_user_mode + 0.5), 0, 3);
+
+  plosive_user_freq <= 0 ? (
+    plosive_user_on = 1;
+    plosive_user_amt = 5;
+    plosive_user_freq = 160;
+  );
+  plosive_user_on = plosive_user_on >= 0.5 ? 1 : 0;
+  plosive_user_amt = clamp(plosive_user_amt, 0, 12);
+  plosive_user_freq = clamp(plosive_user_freq, 80, 260);
+  sat_mode = clamp(floor(sat_mode + 0.5), 0, 9);
+);
+sanitize_voice_tools();
 function mono_lufs_comp() ( auto_mono_mode >= 0.5 ? 3.0 : 0.0; );
 function out_lr_lufs_target() ( clamp(out_target_lr + 1, -30, -10); );
 function out_lr_rms_target() ( clamp(out_target_lr - 1, -30, -8); );
@@ -905,19 +912,8 @@ local(v)
   v > env ? v : v + peak_meter_c*(env - v);
 );
 
-// compute_dsp_params() -- definita in @init cosi' e' visibile in @slider e @sample
-function compute_dsp_params()
+function compute_voice_repair_params()
 (
-  in_capture_seconds = clamp(in_capture_seconds <= 0 ? 30 : in_capture_seconds, 20, 90);
-  out_capture_seconds = clamp(out_capture_seconds <= 0 ? 30 : out_capture_seconds, 20, 90);
-  density_w = clamp(density * 0.01, 0, 1);
-  density_gr_cap_db = 4 + 20 * density_w;
-  // Fixed real-audio cleanup before dynamics: DC block + 24 dB/oct HPF.
-  cleanup_hpf_hz = min(80, srate * 0.35);
-  cleanup_hpf1L.biquad_set_hp(cleanup_hpf_hz, 0.70710678);
-  cleanup_hpf1R.biquad_set_hp(cleanup_hpf_hz, 0.70710678);
-  cleanup_hpf2L.biquad_set_hp(cleanup_hpf_hz, 0.70710678);
-  cleanup_hpf2R.biquad_set_hp(cleanup_hpf_hz, 0.70710678);
   // Dynamic low-band pop softener before expander/compressors.
   plosive_freq = min(clamp(plosive_user_freq, 80, 260), srate * 0.25);
   plosive_amt_db = clamp(plosive_user_amt, 0, 12);
@@ -925,6 +921,7 @@ function compute_dsp_params()
   plosive_rel_c = exp(-1 / (0.055 * srate));
   plosive_lpL.biquad_set_lp(plosive_freq, 0.70710678);
   plosive_lpR.biquad_set_lp(plosive_freq, 0.70710678);
+
   // Smart split-band de-esser before the compression stack.
   deess_mode = clamp(floor(deess_user_mode + 0.5), 0, 3);
   deess_hz = clamp(deess_user_hz, 3500, 12000);
@@ -941,6 +938,81 @@ function compute_dsp_params()
   deess_splitR.biquad_set_hp(deess_hz, 0.70710678);
   deess_detL.biquad_set_hp(deess_hz, 0.70710678);
   deess_detR.biquad_set_hp(deess_hz, 0.70710678);
+);
+
+function apply_plosive_control()
+(
+  plosive_user_on >= 0.5 && plosive_amt_db > 0 ? (
+    plosive_lowL = plosive_lpL.biquad_tick(inL);
+    plosive_lowR = plosive_lpR.biquad_tick(inR);
+    plosive_body = max(abs(plosive_lowL), abs(plosive_lowR));
+    plosive_fast = abs(plosive_body - plosive_prev);
+    plosive_prev = plosive_body;
+    plosive_det = max(plosive_body * 0.35, plosive_fast * 3.2);
+    plosive_env += (plosive_det - plosive_env) * ((plosive_det > plosive_env) ? (1 - plosive_att_c) : (1 - plosive_rel_c));
+    plosive_over_db = gain2db(max(plosive_env, 0.000000000001)) - (gate_thresh + 12);
+    plosive_gr_db = plosive_over_db > 0 ? -min(plosive_amt_db, plosive_over_db * 0.85) : 0;
+    plosive_g = db2gain(plosive_gr_db);
+    inL += plosive_lowL * (plosive_g - 1);
+    inR += plosive_lowR * (plosive_g - 1);
+  ) : (
+    plosive_gr_db = 0;
+    plosive_g = 1;
+    plosive_prev *= 0.999;
+  );
+);
+
+function apply_input_cleanup()
+(
+  inL = cleanup_dcL.dc_tick(inL);
+  inR = cleanup_dcR.dc_tick(inR);
+  apply_plosive_control();
+  inL = cleanup_hpf1L.biquad_tick(inL);
+  inR = cleanup_hpf1R.biquad_tick(inR);
+  inL = cleanup_hpf2L.biquad_tick(inL);
+  inR = cleanup_hpf2R.biquad_tick(inR);
+);
+
+function apply_smart_deesser()
+(
+  deess_user_on >= 0.5 && deess_range_db > 0 ? (
+    deess_hiL = deess_splitL.biquad_tick(s1L);
+    deess_hiR = deess_splitR.biquad_tick(s1R);
+    deess_loL = s1L - deess_hiL;
+    deess_loR = s1R - deess_hiR;
+    deess_keyL = deess_detL.biquad_tick(s1L);
+    deess_keyR = deess_detR.biquad_tick(s1R);
+    deess_det = max(abs(deess_keyL), abs(deess_keyR));
+    deess_trans = abs(deess_det - deess_prev);
+    deess_prev = deess_det;
+    deess_mode == 0 ? deess_det = max(deess_det, deess_trans * 2.2);
+    deess_mode == 3 ? deess_det = max(deess_det * 0.60, deess_trans * 3.4);
+    deess_env += (deess_det - deess_env) * ((deess_det > deess_env) ? (1 - deess_att_c) : (1 - deess_rel_c));
+    deess_over_db = gain2db(max(deess_env, 0.000000000001)) - deess_thr_db;
+    deess_gr_db = deess_over_db > 0 ? -min(deess_range_db, deess_over_db) : 0;
+    deess_g = db2gain(deess_gr_db);
+    s1L = deess_loL + deess_hiL * deess_g;
+    s1R = deess_loR + deess_hiR * deess_g;
+  ) : (
+    deess_gr_db = 0;
+    deess_g = 1;
+  );
+);
+
+// compute_dsp_params() -- definita in @init cosi' e' visibile in @slider e @sample
+function compute_dsp_params()
+(
+  in_capture_seconds = clamp(in_capture_seconds <= 0 ? 30 : in_capture_seconds, 20, 90);
+  out_capture_seconds = clamp(out_capture_seconds <= 0 ? 30 : out_capture_seconds, 20, 90);
+  density_w = clamp(density * 0.01, 0, 1);
+  density_gr_cap_db = 4 + 20 * density_w;
+  // Fixed real-audio cleanup before dynamics: DC block + 24 dB/oct HPF.
+  cleanup_hpf_hz = min(80, srate * 0.35);
+  cleanup_hpf1L.biquad_set_hp(cleanup_hpf_hz, 0.70710678);
+  cleanup_hpf1R.biquad_set_hp(cleanup_hpf_hz, 0.70710678);
+  cleanup_hpf2L.biquad_set_hp(cleanup_hpf_hz, 0.70710678);
+  cleanup_hpf2R.biquad_set_hp(cleanup_hpf_hz, 0.70710678);
+  compute_voice_repair_params();
   // Gate
   gate_sc_hpf_on = gate_hpf >= 20 ? 1 : 0;
   gate_sc_hpf_hz = min(max(gate_hpf, 20), srate*0.45);
@@ -1555,27 +1627,7 @@ brn_xmove1 = clamp(brn_xmove1, -1, 1);
 brn_xmove2 = clamp(brn_xmove2, -1, 1);
 brn_xmove3 = clamp(brn_xmove3, -1, 1);
 brn_xmove4 = clamp(brn_xmove4, -1, 1);
-deess_user_hz <= 0 ? (
-  deess_user_on = 1;
-  deess_user_thr = -28;
-  deess_user_hz = 6500;
-  deess_user_range = 4;
-  deess_user_mode = 0;
-);
-deess_user_on = deess_user_on >= 0.5 ? 1 : 0;
-deess_user_thr = clamp(deess_user_thr, -60, 0);
-deess_user_hz = clamp(deess_user_hz, 3500, 12000);
-deess_user_range = clamp(deess_user_range, 0, 12);
-deess_user_mode = clamp(floor(deess_user_mode + 0.5), 0, 3);
-plosive_user_freq <= 0 ? (
-  plosive_user_on = 1;
-  plosive_user_amt = 5;
-  plosive_user_freq = 160;
-);
-plosive_user_on = plosive_user_on >= 0.5 ? 1 : 0;
-plosive_user_amt = clamp(plosive_user_amt, 0, 12);
-plosive_user_freq = clamp(plosive_user_freq, 80, 260);
-sat_mode = clamp(floor(sat_mode + 0.5), 0, 9);
+sanitize_voice_tools();
 refresh_in_smart_capture_trim();
 refresh_out_smart_capture_trim();
 // Hidden Brown parameters are project-saved; after recall, rebuild derived DSP
@@ -1712,31 +1764,8 @@ in_post_sig = 0.5*(inL*inL + inR*inR);
 dbg_in_post_env = in_post_sig + dbg_meter_c*(dbg_in_post_env - in_post_sig);
 dbg_in_post_db = gain2db(sqrt(max(dbg_in_post_env,0.000000000001)));
 
-// Real audio cleanup before dynamics: remove DC, rumble and plosive sub-energy.
-inL = cleanup_dcL.dc_tick(inL);
-inR = cleanup_dcR.dc_tick(inR);
-plosive_user_on >= 0.5 && plosive_amt_db > 0 ? (
-  plosive_lowL = plosive_lpL.biquad_tick(inL);
-  plosive_lowR = plosive_lpR.biquad_tick(inR);
-  plosive_body = max(abs(plosive_lowL), abs(plosive_lowR));
-  plosive_fast = abs(plosive_body - plosive_prev);
-  plosive_prev = plosive_body;
-  plosive_det = max(plosive_body * 0.35, plosive_fast * 3.2);
-  plosive_env += (plosive_det - plosive_env) * ((plosive_det > plosive_env) ? (1 - plosive_att_c) : (1 - plosive_rel_c));
-  plosive_over_db = gain2db(max(plosive_env, 0.000000000001)) - (gate_thresh + 12);
-  plosive_gr_db = plosive_over_db > 0 ? -min(plosive_amt_db, plosive_over_db * 0.85) : 0;
-  plosive_g = db2gain(plosive_gr_db);
-  inL += plosive_lowL * (plosive_g - 1);
-  inR += plosive_lowR * (plosive_g - 1);
-) : (
-  plosive_gr_db = 0;
-  plosive_g = 1;
-  plosive_prev *= 0.999;
-);
-inL = cleanup_hpf1L.biquad_tick(inL);
-inR = cleanup_hpf1R.biquad_tick(inR);
-inL = cleanup_hpf2L.biquad_tick(inL);
-inR = cleanup_hpf2R.biquad_tick(inR);
+// Real audio cleanup before dynamics: DC, plosive control, rumble HPF.
+apply_input_cleanup();
 
 // Input target LED: LOW / OK / HOT (for manual trim guidance).
 in_led_state = (pk_in_trim_db < -18) ? 0 : ((pk_in_trim_db > -6) ? 2 : 1);
@@ -1790,30 +1819,8 @@ gate_on ? (
   gate_gain = 1;
 );
 
-// Dedicated pre-compression split de-esser. Keeps S/SH/T spikes from driving
-// the 1175/LA2/MajorTom stack too hard.
-deess_user_on >= 0.5 && deess_range_db > 0 ? (
-  deess_hiL = deess_splitL.biquad_tick(s1L);
-  deess_hiR = deess_splitR.biquad_tick(s1R);
-  deess_loL = s1L - deess_hiL;
-  deess_loR = s1R - deess_hiR;
-  deess_keyL = deess_detL.biquad_tick(s1L);
-  deess_keyR = deess_detR.biquad_tick(s1R);
-  deess_det = max(abs(deess_keyL), abs(deess_keyR));
-  deess_trans = abs(deess_det - deess_prev);
-  deess_prev = deess_det;
-  deess_mode == 0 ? deess_det = max(deess_det, deess_trans * 2.2);
-  deess_mode == 3 ? deess_det = max(deess_det * 0.60, deess_trans * 3.4);
-  deess_env += (deess_det - deess_env) * ((deess_det > deess_env) ? (1 - deess_att_c) : (1 - deess_rel_c));
-  deess_over_db = gain2db(max(deess_env, 0.000000000001)) - deess_thr_db;
-  deess_gr_db = deess_over_db > 0 ? -min(deess_range_db, deess_over_db) : 0;
-  deess_g = db2gain(deess_gr_db);
-  s1L = deess_loL + deess_hiL * deess_g;
-  s1R = deess_loR + deess_hiR * deess_g;
-) : (
-  deess_gr_db = 0;
-  deess_g = 1;
-);
+// Keeps S/SH/T spikes from driving the 1175/LA2/MajorTom stack too hard.
+apply_smart_deesser();
 
 pk_gate_env = peak_meter_tick(max(abs(s1L), abs(s1R)), pk_gate_env);
 pk_gate_db = gain2db(pk_gate_env);
@@ -2534,10 +2541,10 @@ ext_gr_meter = c1175_gr_db + la2_gr_db + mt_gr_db;
 
 
 
-@gfx 720 940
+@gfx 820 940
 
 // ╔══════════════════════════════════════════════════════════════════════╗
-// ║  MANUALE OPERATIVO — Pro Voice Chain v1.0                         ║
+// ║  MANUALE OPERATIVO — Pro Voice Chain v1.1                         ║
 // ╠══════════════════════════════════════════════════════════════════════╣
 // ║  STRUTTURA CATENA (dall'alto verso il basso)                        ║
 // ║  1  Input Smart  — GainIn manuale prima di CAP; poi Target RMS,     ║
@@ -4413,7 +4420,7 @@ local(tip_y)
   ui_hover_id==9031 ? strcpy(#_tip_msg,"+Off Ref: offset voce sopra la musica in dB; valore tipico +6 dB voce chiara, +4 dB narrazione") :
   ui_hover_id==9040 ? strcpy(#_tip_msg,"Final Limiter ON/OFF: ON default per delivery safety; OFF bypassa la protezione post-Output") :
   ui_hover_id==9015 ? strcpy(#_tip_msg,"RST: click singolo, azzera tutti i parametri Output ai valori di default e deseleziona il preset attivo") :
-  strcpy(#_tip_msg,"Pro Voice Chain v1.0 | VoiceSat hybrid + cleanup/de-ess + density | Brown Slope Map drag XY");
+  strcpy(#_tip_msg,"Pro Voice Chain v1.1 | VoiceSat hybrid + cleanup/de-ess + density | Brown Slope Map drag XY");
 
   draw_tip_message(tip_y);
 );
@@ -4537,7 +4544,8 @@ refresh_auto_mono_state();
 
 out_vis = (floor(slider(53)+0.5) & 128) ? 1 : 0;
 OUT_H = out_vis ? (PH + 190) : 0;
-MIN_PW = 700;
+MIN_PW = 780;       // Room for Expander plosive + smart de-esser mini panels.
+WARN_W = MIN_PW + 10;
 PW = max(MIN_PW, gfx_w - 20);
 max_scroll_x = max(0, PW + 20 - gfx_w);
 hwdelta = mouse_hwheel - last_mouse_hwheel;
@@ -4551,7 +4559,7 @@ last_mouse_hwheel = mouse_hwheel;
 PX = 10 - ui_scroll_x;  // shift orizzontale solo quando finestra < layout minimo
 
 // ── DEBUG: window size info in tip bar ───────────────────────────────────
-gfx_w < 710 ? (
+gfx_w < WARN_W ? (
   gfx_set(0.80,0.20,0.10,1); gfx_rect(0,0,gfx_w,20);
   gfx_setfont(1,"Arial",10,'b'); gfx_set(1,1,1,1);
   sprintf(#_dbgw,"[!] Finestra stretta: %dx%d - allarga o usa scroll orizzontale",floor(gfx_w),floor(gfx_h));
@@ -4574,7 +4582,7 @@ gfx_set(0.18,0.20,0.24,1); gfx_rect(0,HDR_H+HDR_Y+2,gfx_w,1);
 gfx_setfont(1,"Arial",17,'b'); gfx_set(0.94,0.96,0.98,1);
 gfx_x=16; gfx_y=HDR_Y+7; gfx_drawstr("PRO VOICE CHAIN");
 gfx_setfont(1,"Arial",12); gfx_set(0.46,0.60,0.76,1);
-gfx_x=16; gfx_y=HDR_Y+31; gfx_drawstr("v1.0 | VoiceSat + Cleanup/DeEss");
+gfx_x=16; gfx_y=HDR_Y+31; gfx_drawstr("v1.1 | VoiceSat + Cleanup/DeEss");
 // Module status indicators (colored by active/inactive state)
 gfx_setfont(1,"Arial",13);
 gfx_x=16; gfx_y=HDR_Y+50;
@@ -4694,7 +4702,7 @@ gfx_set(0.18,0.20,0.24,1); gfx_rect(0,HDR_H+HDR_Y+2,gfx_w,1);
 gfx_setfont(1,"Arial",17,'b'); gfx_set(0.94,0.96,0.98,1);
 gfx_x=16; gfx_y=HDR_Y+7; gfx_drawstr("PRO VOICE CHAIN");
 gfx_setfont(1,"Arial",12); gfx_set(0.46,0.60,0.76,1);
-gfx_x=16; gfx_y=HDR_Y+31; gfx_drawstr("v1.0 | VoiceSat + Cleanup/DeEss");
+gfx_x=16; gfx_y=HDR_Y+31; gfx_drawstr("v1.1 | VoiceSat + Cleanup/DeEss");
 gfx_setfont(1,"Arial",13);
 gfx_x=16; gfx_y=HDR_Y+50;
 floor(slider(2) +0.5) ? gfx_set(0.30,0.62,0.92,1) : gfx_set(0.34,0.48,0.62,1); gfx_drawstr("IN ");
@@ -4768,7 +4776,7 @@ gfx_view_i == 1 ? (
   sprintf(#,"Profile: %s   LUFS-I %.1f   RMS %.1f",profile_nm,ui_global_lufs_i,ui_global_rms_db);
   gfx_x=VX+16; gfx_y=VY+44; gfx_drawstr(#);
   gfx_setfont(1,"Arial",10); gfx_set(0.50,0.58,0.64,1);
-  gfx_x=VX+16; gfx_y=VY+66; gfx_drawstr("Usa i cursori host per modificare i parametri. Il pannello Output e' in fondo.");
+  gfx_x=VX+16; gfx_y=VY+66; gfx_drawstr("Usa gli slider host per modificare i parametri. Il pannello Output e' in fondo.");
 
   // Fixed JSFX module navigation bar: stable position regardless of host slider list height.
   gfx_set(0.07,0.08,0.10,1); gfx_rect(10,PBY-2,gfx_w-20,PBH+4);
