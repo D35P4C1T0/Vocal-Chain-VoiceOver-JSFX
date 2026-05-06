@@ -1,0 +1,131 @@
+name: Render plugin UI
+
+on:
+  workflow_dispatch:
+  release:
+    types:
+      - published
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+jobs:
+  render-plugin-ui:
+    name: Render plugin UI into README
+    runs-on: macos-latest
+
+    steps:
+      - name: Check trigger
+        id: gate
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            echo "should_run=true" >> "${GITHUB_OUTPUT}"
+            echo "Manual run requested."
+            exit 0
+          fi
+
+          tag="${GITHUB_REF_NAME}"
+          if [[ "${GITHUB_EVENT_NAME}" == "release" ]]; then
+            tag="${{ github.event.release.tag_name }}"
+          fi
+
+          if [[ "${tag}" =~ ^v?[0-9]+\.0\.0$ ]]; then
+            echo "should_run=true" >> "${GITHUB_OUTPUT}"
+            echo "Rendering UI for major release tag ${tag}."
+          else
+            echo "should_run=false" >> "${GITHUB_OUTPUT}"
+            echo "Skipping ${tag}; expected a major release tag like v2.0.0."
+          fi
+
+      - name: Checkout plugin repository
+        if: steps.gate.outputs.should_run == 'true'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ startsWith(github.ref, 'refs/tags/') && github.event.repository.default_branch || github.ref }}
+
+      - name: Checkout JSFX-to-png
+        if: steps.gate.outputs.should_run == 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: D35P4C1T0/JSFX-to-png
+          path: .github/jsfx-to-png
+
+      - name: Build JSFX-to-png
+        if: steps.gate.outputs.should_run == 'true'
+        working-directory: .github/jsfx-to-png
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --config Release
+
+      - name: Render plugin UI
+        if: steps.gate.outputs.should_run == 'true'
+        run: |
+          mkdir -p docs
+          .github/jsfx-to-png/build/jsfx-to-png \
+            --background 111217 \
+            --frames 2 \
+            Pro_Voice_Chain.jsfx \
+            docs/pro-voice-chain-ui.png
+
+      - name: Update README image block
+        if: steps.gate.outputs.should_run == 'true'
+        shell: python
+        run: |
+          from pathlib import Path
+          from textwrap import dedent
+
+          readme = Path("README.md")
+          image_path = "docs/pro-voice-chain-ui.png"
+          start = "<!-- plugin-ui:start -->"
+          end = "<!-- plugin-ui:end -->"
+          block = dedent(f"""\
+          {start}
+          ## Plugin UI
+
+          ![Pro Voice Chain UI]({image_path})
+
+          {end}
+          """).strip()
+
+          text = readme.read_text()
+          if start in text and end in text:
+              before, rest = text.split(start, 1)
+              _, after = rest.split(end, 1)
+              text = before.rstrip() + "\n\n" + block + after
+          else:
+              needle = "Author: `D35P4C1T0`\n"
+              if needle not in text:
+                  raise SystemExit("Could not find README insertion point.")
+              text = text.replace(needle, needle + "\n" + block + "\n", 1)
+
+          readme.write_text(text)
+
+      - name: Commit README UI
+        if: steps.gate.outputs.should_run == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add README.md docs/pro-voice-chain-ui.png
+
+          if git diff --cached --quiet; then
+            echo "README UI image is already up to date."
+            exit 0
+          fi
+
+          git commit -m "docs: update plugin UI render"
+
+          target_branch="${GITHUB_REF_NAME}"
+          if [[ "${GITHUB_REF}" == refs/tags/* || "${GITHUB_EVENT_NAME}" == "release" ]]; then
+            target_branch="${{ github.event.repository.default_branch }}"
+          fi
+
+          git push origin "HEAD:${target_branch}"
