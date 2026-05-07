@@ -10,6 +10,13 @@ JS: Pro Voice Chain v1.1 - VoiceOver Unified Chain
 
 Author: `D35P4C1T0`
 
+<!-- plugin-ui:start -->
+## Plugin UI
+
+![Pro Voice Chain UI](docs/pro-voice-chain-ui.png)
+
+<!-- plugin-ui:end -->
+
 ## Chain
 
 ```text
