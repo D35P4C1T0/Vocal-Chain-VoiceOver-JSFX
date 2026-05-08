@@ -333,8 +333,8 @@ about:
 //   vengono ricalcolati automaticamente al cambio sessione.
 //   Meter: logica loudness con finestre reali
 //   400 ms / 3 s, LUFS-I con gate relativo e LRA da short-term gated.
-//   Auto S/M: get_host_numchan() in @gfx, fallback num_ch; la compensazione
-//   mono +3 dB entra sia nei meter LUFS sia nell'Output Auto Target LUFS.
+//   Auto S/M: GUI usa num_ch per compatibilita' ysfx; la compensazione mono
+//   +3 dB entra sia nei meter LUFS sia nell'Output Auto Target LUFS.
 //   LRA: campionato a 10 Hz con algoritmo EBU R128 (istogramma P95-P10 + gate -20LU).
 // ============================================================================
 
@@ -544,57 +544,19 @@ function brn_oct_from_1k(freq) ( log(max(freq,1) / 1000) / log(2); );
 function show_slider_range(lo, hi)
 local(j)
 (
+  // Compatibility: ysfx variants may not implement REAPER's slider_show().
+  // Keep this as a no-op so custom GUI drawing cannot abort before paint.
   j = lo;
-  loop(hi - lo + 1,
-    slider_show(slider_mask(j), 1);
-    j += 1;
-  );
 );
 
 function apply_host_slider_visibility(show_host)
 local(i, page)
 (
-  // Stable path used in Stagekeeper: per-slider bitmask.
+  // REAPER-only slider_show() was used here to curate the host slider list.
+  // ysfx can fail/black-screen when this host API is called from @gfx, so the
+  // custom GUI remains authoritative and host slider visibility is left intact.
   page = clamp(floor(compact_page + 0.5), 0, 8);
   ui_host_visibility_state != show_host || ui_host_page_state != page ? (
-    i = 1;
-    loop(64,
-      slider_show(slider_mask(i), 0);
-      i += 1;
-    );
-
-    show_host ? (
-      page == 0 ? (
-        slider_show(slider_mask(1), 1);  // Profile
-        slider_show(slider_mask(2), 1);  // Input Smart Gain
-        slider_show(slider_mask(6), 1);  // Gate On
-        slider_show(slider_mask(13), 1); // 1175 On
-        slider_show(slider_mask(20), 1); // LA2 On
-        slider_show(slider_mask(25), 1); // MajorTom On
-        slider_show(slider_mask(46), 1); // 1175 SC HPF
-        slider_show(slider_mask(48), 1); // LA2 SC HPF
-        slider_show(slider_mask(51), 1); // MajorTom SC HPF
-        slider_show(slider_mask(57), 1); // Brown Guard On
-        slider_show(slider_mask(34), 1); // Limiter On
-        slider_show(slider_mask(56), 1); // Output On
-      ) :
-      page == 1 ? ( show_slider_range(2, 5); show_slider_range(50, 50); ) :
-      page == 2 ? ( show_slider_range(6, 12); slider_show(slider_mask(49), 1); ) :
-      page == 3 ? ( show_slider_range(13, 19); slider_show(slider_mask(46), 1); ) :
-      page == 4 ? ( show_slider_range(20, 24); slider_show(slider_mask(48), 1); ) :
-      page == 5 ? ( show_slider_range(25, 33); slider_show(slider_mask(51), 1); ) :
-      page == 6 ? show_slider_range(57, 63) :
-      page == 7 ? show_slider_range(34, 39) :
-      page == 8 ? ( show_slider_range(40, 45); show_slider_range(50, 50); show_slider_range(54, 56); );
-
-      // Keep navigation first in OSARA/host lists.
-      slider_show(slider_mask(47), 1);
-      slider_show(slider_mask(52), 1);
-
-      // Other internal controls stay controlled by the mini GUI.
-      slider_show(slider_mask(53), 0);
-    );
-
     ui_host_visibility_state = show_host;
     ui_host_page_state = page;
   );
@@ -1413,13 +1375,11 @@ dense_mode = (profile_i == 3);
 ui_block_mask_i = clamp(floor(ui_block_mask + 0.5), 0, 255);
 ui_block_mask != ui_block_mask_i ? (
   ui_block_mask = ui_block_mask_i;
-  sliderchange(slider_mask(53));
 );
 // Migratione da v4.0.20: slider55 era un parametro inutilizzato con default +6.
 lr_migration_done == 0 ? (
   out_target_lr > -5 ? (
     out_target_lr = clamp((out_target_lufs + out_target_rms) * 0.5, -29, -9);
-    sliderchange(slider_mask(55));
   );
   lr_migration_done = 1;
 );
@@ -2593,7 +2553,7 @@ ext_gr_meter = c1175_gr_db + la2_gr_db + mt_gr_db;
 // PRIMITIVES
 // ═══════════════════════════════════════════════════════════════
 
-function set_ui_slider(sl_idx, new_val) local(mask)(
+function set_ui_slider(sl_idx, new_val) local(mask) (
   slider(sl_idx) = new_val;
   mask = slider_mask(sl_idx);
   sliderchange(mask);
@@ -2605,8 +2565,9 @@ function hit(x, y, w, h) ( mouse_x>=x && mouse_x<=(x+w) && mouse_y>=y && mouse_y
 function refresh_auto_mono_state()
 local(hch)
 (
-  hch = get_host_numchan();
-  hch <= 0 ? hch = num_ch;
+  // get_host_numchan() is a REAPER host-interaction API and is not portable
+  // across ysfx builds. num_ch is safe and keeps mono compensation deterministic.
+  hch = num_ch;
   auto_mono_host_ch = hch;
   auto_mono_mode = hch < 2 ? 1 : 0;
   auto_mono_from_gfx = 1;
@@ -4538,6 +4499,8 @@ fine_tune   = (mouse_cap & 8) ? 0.08 : 1.0;
 ui_hover_id = 0;
 
 TIP_H = 32;
+SCROLL_SPEED_Y = 0.90;
+SCROLL_SPEED_X = 0.70;
 gfx_view_i = floor(gfx_view+0.5);
 apply_host_slider_visibility(gfx_view_i);
 refresh_auto_mono_state();
@@ -4550,7 +4513,7 @@ PW = max(MIN_PW, gfx_w - 20);
 max_scroll_x = max(0, PW + 20 - gfx_w);
 hwdelta = mouse_hwheel - last_mouse_hwheel;
 max_scroll_x > 0 ? (
-  ui_scroll_x += hwdelta * 0.35;
+  ui_scroll_x += hwdelta * SCROLL_SPEED_X;
   ui_scroll_x = max(0, min(max_scroll_x, ui_scroll_x));
 ) : (
   ui_scroll_x = 0;
@@ -4668,7 +4631,7 @@ max_scroll = max(0, tot_h - CONT_H);
 
 in_cont = hit(PX, CONT_Y0, PW, CONT_H);
 wdelta  = mouse_wheel - last_mouse_wheel;
-in_cont ? ( ui_scroll_y -= wdelta*0.35; ui_scroll_y = max(0,min(max_scroll,ui_scroll_y)); );
+in_cont ? ( ui_scroll_y -= wdelta * SCROLL_SPEED_Y; ui_scroll_y = max(0,min(max_scroll,ui_scroll_y)); );
 last_mouse_wheel = mouse_wheel;
 
 CY = CONT_Y0 - ui_scroll_y;
