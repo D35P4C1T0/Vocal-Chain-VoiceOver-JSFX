@@ -5,13 +5,26 @@
       <metadata>
         <description><![CDATA[Professional voice-over channel strip for REAPER JSFX.
 
-Chain: Trim -> DC Block -> HPF -> Downward Expander -> Corrective EQ -> Split De-esser -> Compressor -> Saturation -> Limiter.
+Chain: Trim -> Smart Input -> Cleanup -> Expander -> De-esser -> Tape Glue -> 1175 -> LA2 -> MajorTom -> Brown Guard -> VoiceSat Limiter -> Output Safety.
 
-Includes multiple saturation models, stage meters, input/output meters, and voice-over focused defaults.]]></description>
+Includes optional Tape Glue adapted from ZP Master Pro, multiple saturation models, stage meters, input/output meters, and voice-over focused defaults.
+
+REAPER build: hides host sliders in GUI mode using slider_show().]]></description>
         <link rel="website">https://github.com/D35P4C1T0/Vocal-Chain-VoiceOver-JSFX</link>
       </metadata>
-      <version name="1.1.0" author="D35P4C1T0" time="2026-05-06T00:00:00Z">
+      <version name="1.2.0" author="D35P4C1T0" time="2026-06-07T00:00:00Z">
         <source>https://github.com/D35P4C1T0/Vocal-Chain-VoiceOver-JSFX/raw/main/Pro_Voice_Chain.jsfx</source>
+      </version>
+    </reapack>
+    <reapack name="Pro_Voice_Chain_ysfx.jsfx" type="effect" desc="Pro Voice Chain ySFX">
+      <metadata>
+        <description><![CDATA[Professional voice-over channel strip for ySFX-compatible hosts.
+
+Same DSP as Pro Voice Chain, but avoids REAPER-only slider_show() calls for ySFX compatibility.]]></description>
+        <link rel="website">https://github.com/D35P4C1T0/Vocal-Chain-VoiceOver-JSFX</link>
+      </metadata>
+      <version name="1.2.0" author="D35P4C1T0" time="2026-06-07T00:00:00Z">
+        <source>https://github.com/D35P4C1T0/Vocal-Chain-VoiceOver-JSFX/raw/main/Pro_Voice_Chain_ysfx.jsfx</source>
       </version>
     </reapack>
   </category>

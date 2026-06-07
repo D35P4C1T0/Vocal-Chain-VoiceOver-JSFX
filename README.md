@@ -5,7 +5,7 @@ Professional voice-over channel strip for REAPER JSFX.
 Current plugin:
 
 ```text
-JS: Pro Voice Chain v1.1 - VoiceOver Unified Chain
+JS: Pro Voice Chain v1.2 - VoiceOver Unified Chain
 ```
 
 Author: `D35P4C1T0`
@@ -26,6 +26,7 @@ Input Trim
 -> Plosive control
 -> Downward Expander
 -> Smart split-band De-esser
+-> Tape Glue
 -> 1175 compressor
 -> LA2 compressor
 -> MajorTom compressor
@@ -42,7 +43,7 @@ flowchart TD
     input["Voice Input<br/>Trim + Smart Gain"]
     repair["Repair<br/>DC/HPF cleanup + Plosive Control"]
     dynamics["Dynamics<br/>Downward Expander + Smart De-esser"]
-    comp["Compression<br/>1175 -> LA2 -> MajorTom"]
+    comp["Glue + Compression<br/>Tape Glue -> 1175 -> LA2 -> MajorTom"]
     tone["Tone + Density<br/>Brown Guard -> VoiceSat Limiter"]
     output["Delivery<br/>LUFS/RMS/L+R Auto Trim -> Safety Limiter"]
     done["Ready Voice-Over Output"]
@@ -61,6 +62,7 @@ flowchart TD
 - Dynamic plosive control for P/B pops before compression.
 - Downward expander for room tone and noise control between phrases.
 - Smart de-esser with Auto, S, SH, and T/C modes. It works independently from the expander and stays active when the expander is bypassed.
+- Optional Tape Glue adapted from the updated ZP Master Pro behavior: soft tape saturation, hysteresis, slew/bias, conservative flutter, head bump, and HF encode/decode tilt.
 - Three-stage compression stack: fast 1175, opto-style LA2, and MajorTom program-dependent compression.
 - Brown Guard dynamic tone shaping for low/mid/high balance.
 - VoiceSat saturation with selectable modes:
@@ -138,14 +140,31 @@ Recommended starting points for voice-over:
 - Vertical scrolling remains enabled for the module stack.
 - If the window is narrower than the minimum layout, horizontal scrolling appears.
 
+## Build Variants
+
+- `Pro_Voice_Chain.jsfx`: REAPER build. Uses `slider_show()` so GUI mode hides the long host slider list; switch to `JSFX` inside the plugin to show parameters.
+- `Pro_Voice_Chain_ysfx.jsfx`: ySFX-compatible build. Avoids `slider_show()` host calls; sliders may remain visible above the custom UI depending on host.
+
+Generate the ySFX variant from the REAPER build after DSP/UI changes:
+
+```sh
+tools/build_ysfx_variant.sh
+```
+
 ## Manual Install
 
-Copy `Pro_Voice_Chain.jsfx` into your REAPER `Effects` folder, then restart REAPER or rescan JSFX and search for `Pro Voice Chain`.
+Copy the build you want into your REAPER `Effects` folder, then restart REAPER or rescan JSFX and search for `Pro Voice Chain`.
 
 ### macOS
 
 ```text
 ~/Library/Application Support/REAPER/Effects/D35P4C1T0/Pro_Voice_Chain.jsfx
+```
+
+For ySFX:
+
+```text
+~/Library/Application Support/REAPER/Effects/D35P4C1T0/Pro_Voice_Chain_ysfx.jsfx
 ```
 
 ### Windows

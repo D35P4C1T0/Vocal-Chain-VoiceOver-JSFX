@@ -1,4 +1,4 @@
-desc:Pro Voice Chain v1.2 - VoiceOver Unified Chain
+desc:Pro Voice Chain v1.2 ySFX - VoiceOver Unified Chain
 version:1.2.0
 author:D35P4C1T0
 about:
@@ -558,11 +558,8 @@ function brn_oct_from_1k(freq) ( log(max(freq,1) / 1000) / log(2); );
 function show_slider_range(lo, hi)
 local(j)
 (
+  // ySFX compatibility: REAPER slider visibility API is not portable.
   j = lo;
-  while(j <= hi)(
-    slider_show(slider_mask(j), 1);
-    j += 1;
-  );
 );
 
 function apply_host_slider_visibility(show_host)
@@ -572,15 +569,6 @@ local(i, page)
   ui_host_visibility_state != show_host || ui_host_page_state != page ? (
     ui_host_visibility_state = show_host;
     ui_host_page_state = page;
-    show_host >= 0.5 ? (
-      show_slider_range(1, 64);
-    ) : (
-      i = 1;
-      while(i <= 64)(
-        slider_show(slider_mask(i), 0);
-        i += 1;
-      );
-    );
   );
 );
 
